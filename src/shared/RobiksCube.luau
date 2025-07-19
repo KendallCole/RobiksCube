@@ -188,13 +188,22 @@ end
 function RubiksCubeClass:getCFrame()
 	return self.model:GetModelCFrame()
 end
-function RubiksCubeClass:reset()
-	self.__activeGroup = nil
-	for part, baseCFrame in pairs(self.__basePositions) do
-		part.CFrame = baseCFrame
+
+
+function restoreFromSnapshot(snapshot: {Part: CFrame})
+	for part, cframe in pairs(snapshot) do
+		part.CFrame = cframe
 	end
 end
 
+function RubiksCubeClass:reset()
+	self.__activeGroup = nil
+	restoreFromSnapshot(self.__basePositions)
+end
+
+function RubiksCubeClass:restoreFromLastSafeSnapshot()
+	restoreFromSnapshot(self.__lastStableSnapshot)
+end
 local function getRotationWithFaceInMind(angle: number, group, face: string)
 	-- Get the rotation based on the face orientation
 	if face == DirectionEnums.X then
@@ -213,10 +222,19 @@ function roundToNearestN(n, roundTo)
     return math.floor((n + roundTo*.5) / roundTo) * roundTo
 end
 
+local function moduloKeepNegitives(n, mod)
+	local dir = 1
+	if n < 0 then
+		dir = -1
+	end
+
+	return (math.abs(n) % mod) * dir
+end
+
 function RubiksCubeClass:tweenToNextSafeSpot(steps: number?)
 	if self.__tweenThread then
 		task.cancel(self.__tweenThread)
-		print("Had to cancel old thread first")
+		-- restoreFromSnapshot(self.__lastStableSnapshot)
 	end
 
 
@@ -226,25 +244,24 @@ function RubiksCubeClass:tweenToNextSafeSpot(steps: number?)
 			warn("Already in a good spot, no need")
 			return 
 		end
-	
+
 		local rotation = self.__activeGroup.rotation
 		local prevRotation = self.__activeGroup.prevRotation
 		local group = self.__activeGroup.group
-	
+
 		if rotation % 90 == 0 then
 			return
 		end
-	
+
 		local goal = roundToNearestN(rotation + 45, 90)
 		if prevRotation >= rotation then
 			goal = roundToNearestN(rotation -45, 90)
 		end
-	
+
 		local distance = goal - rotation
-	
+
 		if 90 - math.abs(distance) < DISTANCE_FOR_TWEENING_TO_GO_TOWARDS_TREND then
-			print("Didnt rotate far enough")
-			self:rotateGroup(group, -self.__activeGroup.rotation) -- Back from whence you came
+			self:rotateGroup(group, moduloKeepNegitives(-self.__activeGroup.rotation, 360)) -- Back from whence you came
 		else
 			for i = 1, TWEEN_DEFAULT_STEPS do
 				if self.__activeGroup == nil then
@@ -259,6 +276,7 @@ function RubiksCubeClass:tweenToNextSafeSpot(steps: number?)
 				self:rotateGroup(group, remainingDist)
 			end
 		end
+		self.__tweenThread = nil
 	end)
 end
 
@@ -268,8 +286,8 @@ function RubiksCubeClass:rotateGroup(group: {Part}, angle: number)
 	if angle == 0 then
 		return
 	end
-	assert(angle < 360 and angle > - 360, "angle provided must be between -360 and 360")
-	assert(math.floor(angle+.5) == angle, "Angle must be a whole number")
+	assert(angle <= 360 and angle >= -360, "angle provided must be between -360 and 360, provided")
+	assert(math.floor(angle+.99) == angle, "Angle must be a whole number")
 	local groupHash = makeGroupHashkey(group)
 	if self.__activeGroup ~= nil and self.__activeGroup.groupHashId ~= groupHash then
 		warn(`Group is already active (rotation: {self.__activeGroup.rotation}: {self.__activeGroup.groupHashId}`)
@@ -280,8 +298,7 @@ function RubiksCubeClass:rotateGroup(group: {Part}, angle: number)
 		self.__activeGroup = { group = group, groupHashId = groupHash, rotation = 0, prevRotation = 0 }
 	end
 
-	self.__activeGroup.prevRotation = self.__activeGroup.rotation
-	self.__activeGroup.rotation = (self.__activeGroup.rotation + angle)
+	
 
 	local pivot = self.model:GetModelCFrame() -- Get the model's CFrame as pivo
 	local rotation = getRotationWithFaceInMind(
@@ -294,8 +311,11 @@ function RubiksCubeClass:rotateGroup(group: {Part}, angle: number)
 		part.CFrame = pivot * rotation * pivot:Inverse() * part.CFrame
 	end
 
+	self.__activeGroup.prevRotation = self.__activeGroup.rotation
+	self.__activeGroup.rotation = (self.__activeGroup.rotation + angle)
 	if self.__activeGroup.rotation % 90 == 0 then
 		self.__activeGroup = nil
+		self.__lastStableSnapshot = makeSnapshot(self.model:GetChildren())
 	end
 end
 
@@ -326,6 +346,7 @@ function RubiksCubeClass:getGroupOrientationLocal(group: {Part}): string?
     elseif sameZ then
         return DirectionEnums.Z
     else
+		restoreFromSnapshot(self.__lastStableSnapshot)
 		error(`Group {group} Not a single-axis group`)
         return nil -- Not a single-axis group
     end

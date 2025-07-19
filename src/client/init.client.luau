@@ -17,7 +17,7 @@ HANDLE_TEMPLATE.BrickColor = BrickColor.new("Bright red")
 HANDLE_TEMPLATE.Transparency = 0.5
 HANDLE_TEMPLATE.CanQuery = false
 
-local myCube = RobiksCube.new(20)
+local myCube = RobiksCube.new(3)
 
 local camera = workspace.CurrentCamera
 camera.CameraSubject = myCube.model.PrimaryPart
@@ -236,14 +236,20 @@ local function onMouseDown(trove: Trove.Trove)
 
         local currentPosition = UIS:GetMouseLocation()
         local delta = currentPosition - lastPosition
+        lastPosition = currentPosition
 
         -- Signed movement (X and Y separately)
-        local deltaX = math.round(delta.X) --* math.round(cameraBlockCross.X)
-        local deltaY = math.round(delta.Y * useCrossY)
-        lastPosition = currentPosition
-        myCube:rotateGroup(cubeSelectedParts, 
-            if math.abs(deltaX) > math.abs(deltaY) then deltaX else deltaY
-        )
+        local deltaX = moduloKeepNegitives(math.round(delta.X), 360) --* math.round(cameraBlockCross.X)
+        local deltaY = moduloKeepNegitives(math.round(delta.Y * useCrossY), 360) 
+        
+        pcall(function()
+        
+            myCube:rotateGroup(
+                cubeSelectedParts, 
+                if math.abs(deltaX) > math.abs(deltaY) then deltaX else deltaY
+            )
+        end)
+            
     end
 
     return
@@ -257,8 +263,6 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
         local thread = task.spawn(function() 
             onMouseDown(myTrove) 
             myCube:tweenToNextSafeSpot(1) -- User may break early out of loop. We can do the tween here in that case...
-            print("Made it here")
-            
         end)
         UIS.InputEnded:Wait()
         task.cancel(thread)
@@ -297,13 +301,6 @@ local function onInput(input, gameProcessed)
 
     -- Convert degrees to radians
     local radians = math.rad(90)
-
-    -- Build rotation CFrame
-    local rotationCFrame = CFrame.fromAxisAngle(axis, radians)
-    -- Rotate around cube's center
-
-    
-    -- myCube.model:PivotTo(myCube.model:GetPivot() * rotationCFrame)
 
 
     local duration = 0.1 -- seconds
