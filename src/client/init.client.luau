@@ -6,8 +6,9 @@ local Trove = require(ReplicatedStorage.Shared.utills.Trove)
 local UIS = game:GetService("UserInputService")
 local mouse = game.Players.LocalPlayer:GetMouse() :: Mouse
 
+local SCRAMBLE_AMOUNT = 20
 local MOUSE_DELTA_THRESHOLD = 5 -- Minimum mouse movement to consider a drag action
-local DEBUG_MODE = true
+local DEBUG_MODE = false -- Makes the debugging handles visible. I hate front end!!! :) 
 
 local HANDLE_TEMPLATE = Instance.new("Part")
 HANDLE_TEMPLATE.Anchored = true    
@@ -274,6 +275,19 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.R then
         myCube:reset()
     end
+
+    if input.KeyCode == Enum.KeyCode.F then
+        for i = 1, SCRAMBLE_AMOUNT do
+            myCube:scramble(1)
+        end
+    end
+
+    if input.KeyCode == Enum.KeyCode.Q then
+        while UIS:IsKeyDown(Enum.KeyCode.Q) do
+            myCube:scramble(8)
+            task.wait()
+        end
+    end
 end)
 
 local keyToRotation = {
@@ -296,6 +310,7 @@ local function onInput(input, gameProcessed)
 
 
     if not axis then return end
+
     local rotating = true
 
 

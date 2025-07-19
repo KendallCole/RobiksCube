@@ -157,6 +157,7 @@ function RubiksCubeClass:getGroup(dir: DirectionType, idx: number)
     return parts
 end
 
+
 function RubiksCubeClass:getAllGroups(): {string: {Part}}
 	local groups = {}
 	for x = 1, self.n do
@@ -280,7 +281,33 @@ function RubiksCubeClass:tweenToNextSafeSpot(steps: number?)
 	end)
 end
 
+function RubiksCubeClass:scramble(animationSteps: number?)
+	local animationSteps = animationSteps or 1
 
+	local dir = ({
+		DirectionEnums.X,
+		DirectionEnums.Y,
+		DirectionEnums.Z,
+	})[math.random(1,3)]
+
+	local selectedGroup = math.random(1, self.n)
+	local group = self:getGroup(dir, selectedGroup)
+	local distance = (90) * ((math.random(0, 1) * 2) - 1)
+
+	if animationSteps <= 1 then
+		self:rotateGroup(group, distance)
+	else
+		for i = 1, animationSteps do
+			self:rotateGroup(group, math.floor(distance/animationSteps))
+			RunService.RenderStepped:Wait()
+		end
+		-- Sometimes due to divisor rounding we'll need to do this
+		if self.__activeGroup ~= nil then
+			local remainingDist = distance - self.__activeGroup.rotation
+			self:rotateGroup(group, remainingDist)
+		end
+	end
+end
 
 function RubiksCubeClass:rotateGroup(group: {Part}, angle: number)
 	if angle == 0 then
@@ -431,31 +458,5 @@ function RubiksCubeClass:getFaceParts(face: FaceType): {Part}
 
     return parts
 end
-
-local normalIdVectors = {
-    [Enum.NormalId.Front] = Vector3.new(0, 0, 1),
-    [Enum.NormalId.Back] = Vector3.new(0, 0, -1),
-    [Enum.NormalId.Top] = Vector3.new(0, 1, 0),
-    [Enum.NormalId.Bottom] = Vector3.new(0, -1, 0),
-    [Enum.NormalId.Left] = Vector3.new(-1, 0, 0),
-    [Enum.NormalId.Right] = Vector3.new(1, 0, 0),
-}
-
-local function getOutwardNormalId(partA: Part, origin: Vector3): Enum.NormalId
-    local dir = (origin - partA.Position).Unit
-    local maxDot = -math.huge
-    local bestNormalId = nil
-    for normalId, localNormal in pairs(normalIdVectors) do
-        -- Transform local normal to world space
-        local worldNormal = partA.CFrame:VectorToWorldSpace(localNormal)
-        local dot = worldNormal:Dot(dir)
-        if dot > maxDot then
-            maxDot = dot
-            bestNormalId = normalId
-        end
-    end
-    return bestNormalId
-end
-
 
 return RubiksCube
